@@ -80,11 +80,53 @@ def load_index():
     try:
         with open("byd_index.json", "r", encoding="utf-8") as file:
             index = json.load(file)
+
         return index
 
     except FileNotFoundError:
         st.error("byd_index.json not found. Run build_byd_index.py first.")
         st.stop()
+
+
+def handle_small_talk(question):
+    question_lower = question.lower().strip()
+
+    greetings = [
+        "hello",
+        "hi",
+        "hey",
+        "salam",
+        "assalamualaikum",
+        "assalamu alaikum",
+        "aoa"
+    ]
+
+    how_are_you = [
+        "how are you",
+        "how r u",
+        "how are u",
+        "how you doing",
+        "how are you doing",
+        "how r you"
+    ]
+
+    bot_identity = [
+        "who are you",
+        "what are you",
+        "what can you do",
+        "help"
+    ]
+
+    if question_lower in greetings:
+        return "Hello! I am your BYD Pakistan RAG Assistant. How may i help you."
+
+    if question_lower in how_are_you:
+        return "I am doing great! I am ready to help you with BYD Pakistan car questions."
+
+    if question_lower in bot_identity:
+        return "I am a BYD Pakistan RAG Assistant. I answer questions using PDF data about BYD ATTO 2, ATTO 3, Shark 6, and Seal in Pakistan."
+
+    return None
 
 
 def detect_model_sources(question):
@@ -213,6 +255,7 @@ def ask_gemini(prompt):
                 model=model_name,
                 contents=prompt
             )
+
             return response.text, model_name
 
         except errors.ServerError:
@@ -240,6 +283,9 @@ with st.sidebar:
     st.write("Backend: Python RAG")
     st.write("LLM API: Gemini")
     st.write("Source: BYD PDF files")
+
+    st.divider()
+
     st.write("Models included:")
     st.write("- BYD ATTO 2")
     st.write("- BYD ATTO 3")
@@ -254,6 +300,12 @@ with st.sidebar:
     st.write("What colors are available for BYD Seal?")
     st.write("Is Shark 6 AWD or FWD?")
     st.write("Which BYD has the longest range?")
+
+    st.divider()
+
+    if st.button("Clear chat"):
+        st.session_state.messages = []
+        st.rerun()
 
 # ----------------------------
 # Chat UI
@@ -278,47 +330,58 @@ if question:
         st.write(question)
 
     with st.chat_message("assistant"):
-        with st.spinner("Searching BYD PDF data and generating answer..."):
-            retrieved_chunks = retrieve_chunks(question, index)
+        small_talk_answer = handle_small_talk(question)
 
-            if len(retrieved_chunks) == 0:
-                answer = "Sorry, I could not find this topic in the BYD Pakistan PDF data."
-                st.write(answer)
+        if small_talk_answer is not None:
+            st.write(small_talk_answer)
 
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer
-                })
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": small_talk_answer
+            })
 
-            else:
-                final_prompt = build_prompt(question, retrieved_chunks)
+        else:
+            with st.spinner("Searching BYD PDF data and generating answer..."):
+                retrieved_chunks = retrieve_chunks(question, index)
 
-                answer, model_used = ask_gemini(final_prompt)
+                if len(retrieved_chunks) == 0:
+                    answer = "Sorry, I could not find this topic in the BYD Pakistan PDF data."
+                    st.write(answer)
 
-                st.write(answer)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer
+                    })
 
-                st.caption("Model used: " + model_used)
+                else:
+                    final_prompt = build_prompt(question, retrieved_chunks)
 
-                with st.expander("View retrieved PDF sources"):
-                    for item in retrieved_chunks:
-                        similarity_percent = round(item["similarity"] * 100)
-                        final_percent = round(item["final_score"] * 100)
+                    answer, model_used = ask_gemini(final_prompt)
 
-                        st.write(
-                            "**Source:** "
-                            + item["source"]
-                            + " | Similarity: "
-                            + str(similarity_percent)
-                            + "%"
-                            + " | Final score: "
-                            + str(final_percent)
-                            + "%"
-                        )
+                    st.write(answer)
 
-                        st.write(item["chunk"])
-                        st.divider()
+                    st.caption("Model used: " + model_used)
 
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer
-                })
+                    with st.expander("View retrieved PDF sources"):
+                        for item in retrieved_chunks:
+                            similarity_percent = round(item["similarity"] * 100)
+                            final_percent = round(item["final_score"] * 100)
+
+                            st.write(
+                                "**Source:** "
+                                + item["source"]
+                                + " | Similarity: "
+                                + str(similarity_percent)
+                                + "%"
+                                + " | Final score: "
+                                + str(final_percent)
+                                + "%"
+                            )
+
+                            st.write(item["chunk"])
+                            st.divider()
+
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer
+                    })
