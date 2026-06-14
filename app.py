@@ -88,7 +88,7 @@ def load_index():
         st.stop()
 
 
-def handle_small_talk(question):
+def handle_simple_questions(question):
     question_lower = question.lower().strip()
 
     greetings = [
@@ -117,14 +117,45 @@ def handle_small_talk(question):
         "help"
     ]
 
+    car_count_phrases = [
+        "how many cars",
+        "how many car",
+        "how many models",
+        "how many model",
+        "cars available",
+        "car available",
+        "models available",
+        "model available",
+        "available cars",
+        "available car",
+        "available models",
+        "available model",
+        "total cars",
+        "total models",
+        "number of cars",
+        "number of models",
+        "how many cars availble",
+        "cars availble",
+        "models availble"
+    ]
+
     if question_lower in greetings:
-        return "Hello! I am your BYD Pakistan RAG Assistant. How may i help you."
+        return "Hello! I am your BYD Pakistan RAG Assistant. You can ask me about BYD ATTO 2, ATTO 3, Shark 6, or Seal."
 
     if question_lower in how_are_you:
         return "I am doing great! I am ready to help you with BYD Pakistan car questions."
 
     if question_lower in bot_identity:
         return "I am a BYD Pakistan RAG Assistant. I answer questions using PDF data about BYD ATTO 2, ATTO 3, Shark 6, and Seal in Pakistan."
+
+    for phrase in car_count_phrases:
+        if phrase in question_lower:
+            return """There are 4 BYD car models available in this project:
+
+1. BYD ATTO 2
+2. BYD ATTO 3
+3. BYD Shark 6
+4. BYD Seal"""
 
     return None
 
@@ -169,7 +200,12 @@ def keyword_bonus(question, chunk):
         "variant", "variants",
         "safety",
         "features",
-        "warranty"
+        "warranty",
+        "phev",
+        "hybrid",
+        "electric",
+        "models",
+        "cars"
     ]
 
     for word in important_words:
@@ -228,6 +264,7 @@ Rules:
 - Mention the BYD model name if relevant.
 - If prices are mentioned, say they are ex-factory and may change.
 - If a detail is uncertain, say it should be verified with an official BYD Pakistan dealer.
+- If the user asks about available cars or models, answer using model names, not only variant names.
 
 Context:
 {context}
@@ -295,6 +332,7 @@ with st.sidebar:
     st.divider()
 
     st.write("Example questions:")
+    st.write("How many cars are available?")
     st.write("What is the price of BYD ATTO 2?")
     st.write("Which BYD car is PHEV?")
     st.write("What colors are available for BYD Seal?")
@@ -330,14 +368,14 @@ if question:
         st.write(question)
 
     with st.chat_message("assistant"):
-        small_talk_answer = handle_small_talk(question)
+        simple_answer = handle_simple_questions(question)
 
-        if small_talk_answer is not None:
-            st.write(small_talk_answer)
+        if simple_answer is not None:
+            st.write(simple_answer)
 
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": small_talk_answer
+                "content": simple_answer
             })
 
         else:
