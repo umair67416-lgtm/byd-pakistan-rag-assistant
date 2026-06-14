@@ -2,6 +2,7 @@ import os
 import json
 import math
 import re
+import html
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
@@ -13,7 +14,8 @@ from google.genai import errors
 
 st.set_page_config(
     page_title="BYD Pakistan RAG Assistant",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ----------------------------
@@ -23,27 +25,12 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Main page */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
         max-width: 1200px;
     }
 
-    /* Hide default Streamlit decoration */
-    #MainMenu {
-        visibility: hidden;
-    }
-
-    footer {
-        visibility: hidden;
-    }
-
-    header {
-        visibility: hidden;
-    }
-
-    /* Header card */
     .header-card {
         background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
         padding: 30px 35px;
@@ -82,7 +69,6 @@ st.markdown(
         font-size: 13px;
     }
 
-    /* Sidebar */
     section[data-testid="stSidebar"] {
         background-color: #111827;
         border-right: 1px solid #374151;
@@ -115,7 +101,6 @@ st.markdown(
         line-height: 1.7;
     }
 
-    /* Chat cards */
     .chat-card-user {
         background-color: #1f2937;
         border: 1px solid #374151;
@@ -149,12 +134,10 @@ st.markdown(
         line-height: 1.7;
     }
 
-    /* Input */
     div[data-testid="stChatInput"] {
         border-radius: 16px;
     }
 
-    /* Buttons */
     .stButton button {
         width: 100%;
         border-radius: 10px;
@@ -167,15 +150,43 @@ st.markdown(
         border-color: #60a5fa;
         color: #ffffff;
     }
-
-    /* Source expander */
-    .streamlit-expanderHeader {
-        font-weight: 600;
-    }
     </style>
     """,
     unsafe_allow_html=True
 )
+
+# ----------------------------
+# Helper for safe HTML display
+# ----------------------------
+
+def format_text_for_html(text):
+    safe_text = html.escape(text)
+    safe_text = safe_text.replace("\n", "<br>")
+    return safe_text
+
+
+def display_user_message(text):
+    st.markdown(
+        f"""
+        <div class="chat-card-user">
+            <div class="chat-label">User</div>
+            <div class="chat-text">{format_text_for_html(text)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def display_assistant_message(text):
+    st.markdown(
+        f"""
+        <div class="chat-card-assistant">
+            <div class="chat-label">Assistant</div>
+            <div class="chat-text">{format_text_for_html(text)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ----------------------------
 # Header
@@ -272,7 +283,6 @@ def load_index():
 
 def is_roman_urdu_question(question):
     question_lower = question.lower().strip()
-
     words = re.findall(r"[a-zA-Z]+", question_lower)
 
     roman_urdu_words = {
@@ -678,25 +688,9 @@ if "messages" not in st.session_state:
 
 for message in st.session_state.messages:
     if message["role"] == "user":
-        st.markdown(
-            f"""
-            <div class="chat-card-user">
-                <div class="chat-label">User</div>
-                <div class="chat-text">{message["content"]}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        display_user_message(message["content"])
     else:
-        st.markdown(
-            f"""
-            <div class="chat-card-assistant">
-                <div class="chat-label">Assistant</div>
-                <div class="chat-text">{message["content"]}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        display_assistant_message(message["content"])
 
 question = st.chat_input("Ask a BYD Pakistan question...")
 
@@ -706,28 +700,12 @@ if question:
         "content": question
     })
 
-    st.markdown(
-        f"""
-        <div class="chat-card-user">
-            <div class="chat-label">User</div>
-            <div class="chat-text">{question}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    display_user_message(question)
 
     simple_answer = handle_simple_questions(question)
 
     if simple_answer is not None:
-        st.markdown(
-            f"""
-            <div class="chat-card-assistant">
-                <div class="chat-label">Assistant</div>
-                <div class="chat-text">{simple_answer}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        display_assistant_message(simple_answer)
 
         st.session_state.messages.append({
             "role": "assistant",
@@ -744,15 +722,7 @@ if question:
                 else:
                     answer = "Sorry, I could not find this topic in the BYD Pakistan PDF data."
 
-                st.markdown(
-                    f"""
-                    <div class="chat-card-assistant">
-                        <div class="chat-label">Assistant</div>
-                        <div class="chat-text">{answer}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                display_assistant_message(answer)
 
                 st.session_state.messages.append({
                     "role": "assistant",
@@ -764,15 +734,7 @@ if question:
 
                 answer, model_used = ask_gemini(final_prompt)
 
-                st.markdown(
-                    f"""
-                    <div class="chat-card-assistant">
-                        <div class="chat-label">Assistant</div>
-                        <div class="chat-text">{answer}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                display_assistant_message(answer)
 
                 st.caption("Model used: " + model_used)
 
