@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import re
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
@@ -12,12 +13,193 @@ from google.genai import errors
 
 st.set_page_config(
     page_title="BYD Pakistan RAG Assistant",
-    page_icon="🚗",
     layout="wide"
 )
 
-st.title("🚗 BYD Pakistan RAG Assistant")
-st.write("Ask questions about BYD ATTO 2, ATTO 3, Shark 6, and Seal in Pakistan.")
+# ----------------------------
+# Professional CSS
+# ----------------------------
+
+st.markdown(
+    """
+    <style>
+    /* Main page */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+
+    /* Hide default Streamlit decoration */
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+
+    header {
+        visibility: hidden;
+    }
+
+    /* Header card */
+    .header-card {
+        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+        padding: 30px 35px;
+        border-radius: 18px;
+        border: 1px solid #374151;
+        margin-bottom: 25px;
+    }
+
+    .main-title {
+        font-size: 42px;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 8px;
+        letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+        font-size: 17px;
+        color: #d1d5db;
+        line-height: 1.6;
+    }
+
+    .tag-row {
+        margin-top: 18px;
+    }
+
+    .tag {
+        display: inline-block;
+        background-color: #111827;
+        color: #d1d5db;
+        border: 1px solid #4b5563;
+        padding: 6px 12px;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        border-radius: 20px;
+        font-size: 13px;
+    }
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #111827;
+        border-right: 1px solid #374151;
+    }
+
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3 {
+        color: #ffffff;
+    }
+
+    .sidebar-card {
+        background-color: #1f2937;
+        padding: 16px;
+        border-radius: 14px;
+        border: 1px solid #374151;
+        margin-bottom: 16px;
+    }
+
+    .sidebar-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 10px;
+    }
+
+    .sidebar-text {
+        color: #d1d5db;
+        font-size: 14px;
+        line-height: 1.7;
+    }
+
+    /* Chat cards */
+    .chat-card-user {
+        background-color: #1f2937;
+        border: 1px solid #374151;
+        border-left: 5px solid #60a5fa;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+    }
+
+    .chat-card-assistant {
+        background-color: #111827;
+        border: 1px solid #374151;
+        border-left: 5px solid #34d399;
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+    }
+
+    .chat-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #9ca3af;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .chat-text {
+        font-size: 16px;
+        color: #f9fafb;
+        line-height: 1.7;
+    }
+
+    /* Input */
+    div[data-testid="stChatInput"] {
+        border-radius: 16px;
+    }
+
+    /* Buttons */
+    .stButton button {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid #4b5563;
+        background-color: #1f2937;
+        color: #ffffff;
+    }
+
+    .stButton button:hover {
+        border-color: #60a5fa;
+        color: #ffffff;
+    }
+
+    /* Source expander */
+    .streamlit-expanderHeader {
+        font-weight: 600;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ----------------------------
+# Header
+# ----------------------------
+
+st.markdown(
+    """
+    <div class="header-card">
+        <div class="main-title">BYD Pakistan RAG Assistant</div>
+        <div class="subtitle">
+            A PDF-based retrieval-augmented generation chatbot for BYD vehicles available in Pakistan.
+            Ask about prices, variants, colors, battery, range, performance, and features.
+        </div>
+        <div class="tag-row">
+            <span class="tag">Streamlit Frontend</span>
+            <span class="tag">Python Backend</span>
+            <span class="tag">Gemini API</span>
+            <span class="tag">PDF Knowledge Base</span>
+            <span class="tag">Roman Urdu Support</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ----------------------------
 # API key setup
@@ -88,8 +270,67 @@ def load_index():
         st.stop()
 
 
+def is_roman_urdu_question(question):
+    question_lower = question.lower().strip()
+
+    words = re.findall(r"[a-zA-Z]+", question_lower)
+
+    roman_urdu_words = {
+        "kya", "kia", "kiya",
+        "hai", "he", "hain", "hein",
+        "ka", "ki", "ke",
+        "ap", "aap", "apke", "aapke",
+        "pass", "paas",
+        "haal", "hal",
+        "kaise", "kese",
+        "kitni", "kitnay", "kitne",
+        "gaari", "gari", "gaariyan", "gariyan",
+        "rang", "qeemat",
+        "bataye", "batao", "btao",
+        "maujood", "dastiyab",
+        "kon", "kaun",
+        "haan", "han",
+        "nahi", "nai",
+        "chahiye"
+    }
+
+    roman_urdu_phrases = [
+        "kon si",
+        "kaun si",
+        "price kya",
+        "available hain",
+        "available hai",
+        "kitni cars",
+        "kitni gariyan",
+        "kitni gaariyan",
+        "kya price",
+        "kia price",
+        "kia haal",
+        "kya haal",
+        "apke pass",
+        "aapke paas",
+        "ke colors",
+        "ke rang",
+        "kya hai",
+        "kia hai",
+        "kya he",
+        "kia he"
+    ]
+
+    for phrase in roman_urdu_phrases:
+        if phrase in question_lower:
+            return True
+
+    for word in words:
+        if word in roman_urdu_words:
+            return True
+
+    return False
+
+
 def handle_simple_questions(question):
     question_lower = question.lower().strip()
+    roman_urdu = is_roman_urdu_question(question)
 
     greetings = [
         "hello",
@@ -101,20 +342,37 @@ def handle_simple_questions(question):
         "aoa"
     ]
 
-    how_are_you = [
+    how_are_you_phrases = [
         "how are you",
         "how r u",
         "how are u",
         "how you doing",
         "how are you doing",
-        "how r you"
+        "how r you",
+        "ap kaise hain",
+        "ap kese hain",
+        "aap kaise hain",
+        "aap kese hain",
+        "kaise ho",
+        "kese ho",
+        "kia haal hein",
+        "kia haal hain",
+        "kya haal hai",
+        "kya haal hain",
+        "kia hal hai",
+        "kia hal hain"
     ]
 
-    bot_identity = [
+    bot_identity_phrases = [
         "who are you",
         "what are you",
         "what can you do",
-        "help"
+        "help",
+        "tum kon ho",
+        "ap kon hain",
+        "aap kon hain",
+        "tum kya ho",
+        "ap kya ho"
     ]
 
     car_count_phrases = [
@@ -136,20 +394,41 @@ def handle_simple_questions(question):
         "number of models",
         "how many cars availble",
         "cars availble",
-        "models availble"
+        "models availble",
+        "kitni cars",
+        "kitni gariyan",
+        "kitni gaariyan",
+        "kitne models",
+        "kitnay models",
+        "kitni models"
     ]
 
     if question_lower in greetings:
-        return "Hello! I am your BYD Pakistan RAG Assistant. You can ask me about BYD ATTO 2, ATTO 3, Shark 6, or Seal."
+        if roman_urdu or question_lower in ["salam", "assalamualaikum", "assalamu alaikum", "aoa"]:
+            return "Assalamualaikum! Main BYD Pakistan RAG Assistant hoon. Aap BYD ATTO 2, ATTO 3, Shark 6, ya Seal ke baare mein sawal pooch sakte hain."
+        return "Hello. I am your BYD Pakistan RAG Assistant. You can ask me about BYD ATTO 2, ATTO 3, Shark 6, or Seal."
 
-    if question_lower in how_are_you:
-        return "I am doing great! I am ready to help you with BYD Pakistan car questions."
+    for phrase in how_are_you_phrases:
+        if phrase in question_lower:
+            if roman_urdu:
+                return "Main theek hoon. Main BYD Pakistan ki cars ke baare mein aapki madad ke liye ready hoon."
+            return "I am doing great. I am ready to help you with BYD Pakistan car questions."
 
-    if question_lower in bot_identity:
-        return "I am a BYD Pakistan RAG Assistant. I answer questions using PDF data about BYD ATTO 2, ATTO 3, Shark 6, and Seal in Pakistan."
+    for phrase in bot_identity_phrases:
+        if phrase in question_lower:
+            if roman_urdu:
+                return "Main BYD Pakistan RAG Assistant hoon. Main PDF data use karke BYD ATTO 2, ATTO 3, Shark 6, aur Seal ke baare mein jawab deta hoon."
+            return "I am a BYD Pakistan RAG Assistant. I answer questions using PDF data about BYD ATTO 2, ATTO 3, Shark 6, and Seal in Pakistan."
 
     for phrase in car_count_phrases:
         if phrase in question_lower:
+            if roman_urdu:
+                return """Is project mein BYD ki 4 car models available hain:
+
+1. BYD ATTO 2
+2. BYD ATTO 3
+3. BYD Shark 6
+4. BYD Seal"""
             return """There are 4 BYD car models available in this project:
 
 1. BYD ATTO 2
@@ -205,7 +484,11 @@ def keyword_bonus(question, chunk):
         "hybrid",
         "electric",
         "models",
-        "cars"
+        "cars",
+        "qeemat",
+        "rang",
+        "gaari",
+        "gari"
     ]
 
     for word in important_words:
@@ -250,6 +533,13 @@ def build_prompt(question, retrieved_chunks):
         context += "Source: " + item["source"] + "\n"
         context += item["chunk"] + "\n\n"
 
+    if is_roman_urdu_question(question):
+        language_rule = "Answer in Roman Urdu only. Do not use Urdu script. Keep BYD model names in English."
+        not_found_message = "Mujhe yeh information BYD Pakistan PDF data mein nahi mili."
+    else:
+        language_rule = "Answer in English."
+        not_found_message = "I could not find this in the provided BYD Pakistan PDF data."
+
     prompt = f"""
 You are a helpful BYD Pakistan car assistant.
 
@@ -257,9 +547,10 @@ Use only the context below to answer the question.
 Do not use outside knowledge.
 
 If the answer is not in the context, say:
-"I could not find this in the provided BYD Pakistan PDF data."
+"{not_found_message}"
 
 Rules:
+- {language_rule}
 - Be clear and student-friendly.
 - Mention the BYD model name if relevant.
 - If prices are mentioned, say they are ex-factory and may change.
@@ -315,31 +606,64 @@ index = load_index()
 # ----------------------------
 
 with st.sidebar:
-    st.header("Project Info")
-    st.write("Frontend: Streamlit")
-    st.write("Backend: Python RAG")
-    st.write("LLM API: Gemini")
-    st.write("Source: BYD PDF files")
+    st.markdown(
+        """
+        <div class="sidebar-card">
+            <div class="sidebar-title">Project Overview</div>
+            <div class="sidebar-text">
+                This assistant answers questions about selected BYD vehicles in Pakistan using PDF-based retrieval-augmented generation.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    st.divider()
+    st.markdown(
+        """
+        <div class="sidebar-card">
+            <div class="sidebar-title">Technology Stack</div>
+            <div class="sidebar-text">
+                Frontend: Streamlit<br>
+                Backend: Python RAG<br>
+                LLM API: Gemini<br>
+                Source: BYD PDF files
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    st.write("Models included:")
-    st.write("- BYD ATTO 2")
-    st.write("- BYD ATTO 3")
-    st.write("- BYD Shark 6")
-    st.write("- BYD Seal")
+    st.markdown(
+        """
+        <div class="sidebar-card">
+            <div class="sidebar-title">Models Included</div>
+            <div class="sidebar-text">
+                BYD ATTO 2<br>
+                BYD ATTO 3<br>
+                BYD Shark 6<br>
+                BYD Seal
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    st.divider()
-
-    st.write("Example questions:")
-    st.write("How many cars are available?")
-    st.write("What is the price of BYD ATTO 2?")
-    st.write("Which BYD car is PHEV?")
-    st.write("What colors are available for BYD Seal?")
-    st.write("Is Shark 6 AWD or FWD?")
-    st.write("Which BYD has the longest range?")
-
-    st.divider()
+    st.markdown(
+        """
+        <div class="sidebar-card">
+            <div class="sidebar-title">Example Questions</div>
+            <div class="sidebar-text">
+                How many cars are available?<br>
+                What is the price of BYD ATTO 2?<br>
+                Which BYD car is PHEV?<br>
+                What colors are available for BYD Seal?<br>
+                BYD Seal ke colors kya hain?<br>
+                Kia Shark 6 PHEV hai?
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     if st.button("Clear chat"):
         st.session_state.messages = []
@@ -353,8 +677,26 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
+    if message["role"] == "user":
+        st.markdown(
+            f"""
+            <div class="chat-card-user">
+                <div class="chat-label">User</div>
+                <div class="chat-text">{message["content"]}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f"""
+            <div class="chat-card-assistant">
+                <div class="chat-label">Assistant</div>
+                <div class="chat-text">{message["content"]}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 question = st.chat_input("Ask a BYD Pakistan question...")
 
@@ -364,62 +706,96 @@ if question:
         "content": question
     })
 
-    with st.chat_message("user"):
-        st.write(question)
+    st.markdown(
+        f"""
+        <div class="chat-card-user">
+            <div class="chat-label">User</div>
+            <div class="chat-text">{question}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    with st.chat_message("assistant"):
-        simple_answer = handle_simple_questions(question)
+    simple_answer = handle_simple_questions(question)
 
-        if simple_answer is not None:
-            st.write(simple_answer)
+    if simple_answer is not None:
+        st.markdown(
+            f"""
+            <div class="chat-card-assistant">
+                <div class="chat-label">Assistant</div>
+                <div class="chat-text">{simple_answer}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": simple_answer
-            })
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": simple_answer
+        })
 
-        else:
-            with st.spinner("Searching BYD PDF data and generating answer..."):
-                retrieved_chunks = retrieve_chunks(question, index)
+    else:
+        with st.spinner("Searching BYD PDF data and generating answer..."):
+            retrieved_chunks = retrieve_chunks(question, index)
 
-                if len(retrieved_chunks) == 0:
-                    answer = "Sorry, I could not find this topic in the BYD Pakistan PDF data."
-                    st.write(answer)
-
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": answer
-                    })
-
+            if len(retrieved_chunks) == 0:
+                if is_roman_urdu_question(question):
+                    answer = "Mujhe yeh information BYD Pakistan PDF data mein nahi mili."
                 else:
-                    final_prompt = build_prompt(question, retrieved_chunks)
+                    answer = "Sorry, I could not find this topic in the BYD Pakistan PDF data."
 
-                    answer, model_used = ask_gemini(final_prompt)
+                st.markdown(
+                    f"""
+                    <div class="chat-card-assistant">
+                        <div class="chat-label">Assistant</div>
+                        <div class="chat-text">{answer}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                    st.write(answer)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer
+                })
 
-                    st.caption("Model used: " + model_used)
+            else:
+                final_prompt = build_prompt(question, retrieved_chunks)
 
-                    with st.expander("View retrieved PDF sources"):
-                        for item in retrieved_chunks:
-                            similarity_percent = round(item["similarity"] * 100)
-                            final_percent = round(item["final_score"] * 100)
+                answer, model_used = ask_gemini(final_prompt)
 
-                            st.write(
-                                "**Source:** "
-                                + item["source"]
-                                + " | Similarity: "
-                                + str(similarity_percent)
-                                + "%"
-                                + " | Final score: "
-                                + str(final_percent)
-                                + "%"
-                            )
+                st.markdown(
+                    f"""
+                    <div class="chat-card-assistant">
+                        <div class="chat-label">Assistant</div>
+                        <div class="chat-text">{answer}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                            st.write(item["chunk"])
-                            st.divider()
+                st.caption("Model used: " + model_used)
 
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": answer
-                    })
+                with st.expander("View retrieved PDF sources"):
+                    for item in retrieved_chunks:
+                        similarity_percent = round(item["similarity"] * 100)
+                        final_percent = round(item["final_score"] * 100)
+
+                        st.write(
+                            "**Source:** "
+                            + item["source"]
+                            + " | Similarity: "
+                            + str(similarity_percent)
+                            + "%"
+                            + " | Final score: "
+                            + str(final_percent)
+                            + "%"
+                        )
+
+                        st.write(item["chunk"])
+                        st.divider()
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer
+                })
